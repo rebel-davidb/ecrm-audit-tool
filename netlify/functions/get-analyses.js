@@ -10,7 +10,12 @@ exports.handler = async (event) => {
   }
 
   try {
-    const store = getStore('email-analyses');
+    const store = getStore({
+      name: 'email-analyses',
+      siteID: process.env.MY_SITE_ID, // Matches the key in Netlify UI
+    token: process.env.MY_NETLIFY_TOKEN
+    });
+
     const { blobs } = await store.list();
 
     if (!blobs || blobs.length === 0) {
