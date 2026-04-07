@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Email Campaign Analyzer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.13.5/cdn.min.js" defer></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #222635;
+      --border: #2e3248;
+      --text: #e8eaf2;
+      --muted: #7b82a0;
+      --accent: #6c63ff;
+      --accent2: #8b85ff;
+      --good: #22c55e;
+      --warn: #f59e0b;
+      --crit: #ef4444;
+      --good-bg: rgba(34,197,94,0.08);
+      --warn-bg: rgba(245,158,11,0.08);
+      --crit-bg: rgba(239,68,68,0.08);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* HEADER */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .logo-icon {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+    }
+    .header-meta {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .pulse {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--good);
+      margin-right: 6px;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* MAIN LAYOUT */
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+
+    /* HERO / SEND TO CARD */
+    .send-card {
+      background: linear-gradient(135deg, #1e1b4b 0%, #1a1d27 100%);
+      border: 1px solid #3730a3;
+      border-radius: 16px;
+      padding: 32px;
+      margin-bottom: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .send-card h2 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .send-card p {
+      color: var(--muted);
+      font-size: 14px;
+      max-width: 480px;
+    }
+    .email-address-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(108,99,255,0.15);
+      border: 1px solid rgba(108,99,255,0.4);
+      border-radius: 10px;
+      padding: 14px 18px;
+      font-size: 15px;
+      font-family: 'Courier New', monospace;
+      color: #a5b4fc;
+      flex-shrink: 0;
+    }
+    .copy-btn {
+      background: var(--accent);
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .copy-btn:hover { background: var(--accent2); }
+    .copy-btn.copied { background: var(--good); }
+
+    /* SECTION HEADER */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .section-header h3 {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .count-badge {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* EMPTY STATE */
+    .empty-state {
+      text-align: center;
+      padding: 80px 24px;
+      color: var(--muted);
+    }
+    .empty-icon { font-size: 48px; margin-bottom: 16px; }
+    .empty-state h4 { font-size: 18px; color: var(--text); margin-bottom: 8px; }
+
+    /* ANALYSIS CARD */
+    .analysis-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 16px;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .analysis-card:hover { border-color: #3d4268; }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 20px 24px;
+      cursor: pointer;
+      gap: 16px;
+    }
+    .card-meta { flex: 1; min-width: 0; }
+    .card-subject {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .card-submeta {
+      font-size: 13px;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .card-submeta span { display: flex; align-items: center; gap: 4px; }
+
+    /* OVERALL SCORE RING */
+    .score-ring {
+      flex-shrink: 0;
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border: 3px solid;
+      font-weight: 800;
+      font-size: 20px;
+      line-height: 1;
+    }
+    .score-ring small { font-size: 9px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+
+    /* DIMENSION SCORES ROW */
+    .dimension-row {
+      display: flex;
+      gap: 8px;
+      padding: 0 24px 16px;
+      flex-wrap: wrap;
+    }
+    .dim-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid transparent;
+    }
+    .dim-score { font-size: 13px; font-weight: 800; }
+
+    /* STATUS COLORS */
+    .status-good  { color: var(--good);  border-color: rgba(34,197,94,0.3);  background: var(--good-bg);  }
+    .status-warning { color: var(--warn); border-color: rgba(245,158,11,0.3); background: var(--warn-bg); }
+    .status-critical { color: var(--crit); border-color: rgba(239,68,68,0.3); background: var(--crit-bg); }
+    .ring-good  { border-color: var(--good);  color: var(--good);  }
+    .ring-warning { border-color: var(--warn); color: var(--warn); }
+    .ring-critical { border-color: var(--crit); color: var(--crit); }
+
+    /* EXPANDED CONTENT */
+    .card-body {
+      border-top: 1px solid var(--border);
+      padding: 24px;
+      display: none;
+    }
+    .card-body.open { display: block; }
+
+    .summary-box {
+      background: var(--surface2);
+      border-radius: 10px;
+      padding: 16px;
+      font-size: 14px;
+      color: #c4c9e2;
+      margin-bottom: 24px;
+      line-height: 1.7;
+    }
+
+    .dimensions-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+    }
+
+    .dim-panel {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+    }
+    .dim-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .dim-panel-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dim-score-badge {
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .tag {
+      font-size: 12px;
+      padding: 3px 10px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+    }
+
+    .fact-row {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      display: flex;
+      gap: 6px;
+    }
+    .fact-row strong { color: var(--text); font-weight: 500; }
+
+    .list-section { margin-top: 10px; }
+    .list-section h5 {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .list-section ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .list-section ul li {
+      font-size: 13px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.5;
+    }
+    .list-section ul li::before {
+      content: '›';
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .issues li::before { color: var(--crit); }
+    .positives li::before { color: var(--good); }
+    .recs li::before { color: var(--accent2); }
+    .alts li::before { color: var(--warn); }
+
+    .chevron { transition: transform 0.2s; }
+    .chevron.open { transform: rotate(180deg); }
+
+    /* LOADING SPINNER */
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 60px auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* REFRESH INDICATOR */
+    .refresh-bar {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    @media (max-width: 640px) {
+      .send-card { flex-direction: column; }
+      .dimensions-grid { grid-template-columns: 1fr; }
+      header { padding: 0 16px; }
+      main { padding: 20px 16px; }
+    }
+  </style>
+</head>
+<body x-data="app()" x-init="init()">
+
+  <!-- HEADER -->
+  <header>
+    <a class="logo" href="#">
+      <span class="logo-icon">📧</span>
+      Email Analyzer
+    </a>
+    <div class="refresh-bar">
+      <span class="pulse"></span>
+      Auto-refreshing every 15s
+      <span x-show="lastRefresh" x-text="'· ' + lastRefresh"></span>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <main>
+
+    <!-- SEND TO CARD -->
+    <div class="send-card">
+      <div>
+        <h2>Send your email here to analyze it</h2>
+        <p>Forward or send your test campaign to the address below. Claude will automatically score it across deliverability, subject &amp; preview, HTML quality, copy &amp; CTA, and accessibility.</p>
+      </div>
+      <div>
+        <div class="email-address-box" id="inboxAddress">
+          <span id="inboxAddr">analyze@YOUR-DOMAIN.mailgun.org</span>
+          <button class="copy-btn" id="copyBtn" onclick="copyEmail()">Copy</button>
+        </div>
+        <p style="font-size:11px; color:var(--muted); margin-top:8px; text-align:center;">
+          Set this in your <strong style="color:var(--text)">INBOUND_EMAIL</strong> env var to update
+        </p>
+      </div>
+    </div>
+
+    <!-- ANALYSES LIST -->
+    <div class="section-header">
+      <h3>Recent Analyses</h3>
+      <span class="count-badge" x-text="analyses.length + ' emails analyzed'"></span>
+    </div>
+
+    <!-- Loading -->
+    <div x-show="loading" class="spinner"></div>
+
+    <!-- Empty state -->
+    <div x-show="!loading && analyses.length === 0" class="empty-state">
+      <div class="empty-icon">📬</div>
+      <h4>No analyses yet</h4>
+      <p>Send a test email to the address above and it will appear here within a few seconds.</p>
+    </div>
+
+    <!-- Analysis cards -->
+    <template x-for="(item, idx) in analyses" :key="item.id">
+      <div class="analysis-card">
+
+        <!-- Card header (clickable) -->
+        <div class="card-header" @click="item._open = !item._open">
+          <div class="card-meta">
+            <div class="card-subject" x-text="item.subject"></div>
+            <div class="card-submeta">
+              <span>✉️ <span x-text="item.sender"></span></span>
+              <span>⏱ <span x-text="formatDate(item.timestamp)"></span></span>
+              <span x-show="item.previewText" style="font-style:italic; color: #6b7280;"
+                    x-text="'Preview: ' + truncate(item.previewText, 60)"></span>
+            </div>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div class="score-ring"
+                 :class="ringClass(item.analysis.overallScore)">
+              <span x-text="item.analysis.overallScore"></span>
+              <small>/10</small>
+            </div>
+            <svg class="chevron" :class="{ open: item._open }" width="20" height="20"
+                 fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path d="M6 9l6 6 6-6"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Dimension chips row -->
+        <div class="dimension-row">
+          <span class="dim-chip" :class="statusClass(item.analysis.deliverability.status)">
+            📬 Deliverability
+            <span class="dim-score" x-text="item.analysis.deliverability.score + '/10'"></span>
+          </span>
+          <span class="dim-chip" :class="statusClass(item.analysis.subjectAndPreview.status)">
+            📝 Subject &amp; Preview
+            <span class="dim-score" x-text="item.analysis.subjectAndPreview.score + '/10'"></span>
+          </span>
+          <span class="dim-chip" :class="statusClass(item.analysis.htmlQuality.status)">
+            🖥 HTML Quality
+            <span class="dim-score" x-text="item.analysis.htmlQuality.score + '/10'"></span>
+          </span>
+          <span class="dim-chip" :class="statusClass(item.analysis.copyAndCta.status)">
+            ✍️ Copy &amp; CTA
+            <span class="dim-score" x-text="item.analysis.copyAndCta.score + '/10'"></span>
+          </span>
+          <span class="dim-chip" :class="statusClass(item.analysis.accessibility.status)">
+            ♿ Accessibility
+            <span class="dim-score" x-text="item.analysis.accessibility.score + '/10'"></span>
+          </span>
+        </div>
+
+        <!-- Expanded body -->
+        <div class="card-body" :class="{ open: item._open }">
+
+          <!-- Summary -->
+          <div class="summary-box">
+            💡 <span x-text="item.analysis.overallSummary"></span>
+          </div>
+
+          <!-- Dimension panels -->
+          <div class="dimensions-grid">
+
+            <!-- DELIVERABILITY -->
+            <div class="dim-panel">
+              <div class="dim-panel-header">
+                <div class="dim-panel-title">📬 Deliverability</div>
+                <span class="dim-score-badge" :class="scoreColor(item.analysis.deliverability.score)"
+                      x-text="item.analysis.deliverability.score + '/10'"></span>
+              </div>
+              <template x-if="item.analysis.deliverability.spamTriggers && item.analysis.deliverability.spamTriggers.length">
+                <div class="tag-list">
+                  <template x-for="t in item.analysis.deliverability.spamTriggers">
+                    <span class="tag status-critical" x-text="'⚠ ' + t"></span>
+                  </template>
+                </div>
+              </template>
+              <template x-if="item.analysis.deliverability.issues && item.analysis.deliverability.issues.length">
+                <div class="list-section">
+                  <h5>Issues</h5>
+                  <ul class="issues">
+                    <template x-for="i in item.analysis.deliverability.issues">
+                      <li x-text="i"></li>
+                    </template>
+                  </ul>
+                </div>
+              </template>
+              <template x-if="item.analysis.deliverability.positives && item.analysis.deliverability.positives.length">
+                <div class="list-section">
+                  <h5>Positives</h5>
+                  <ul class="positives">
+                    <template x-for="p in item.analysis.deliverability.positives">
+                      <li x-text="p"></li>
+                    </template>
+                  </ul>
+                </div>
+              </template>
+              <template x-if="item.analysis.deliverability.recommendations && item.analysis.deliverability.recommendations.length">
+                <div class="list-section">
+                  <h5>Recommendations</h5>
+                  <ul class="recs">
+                    <template x-for="r in item.analysis.deliverability.recommendations">
+                      <li x-text="r"></li>
+                    </template>
+                  </ul>
+                </div>
+              </template>
+            </div>
+
+            <!-- SUBJECT & PREVIEW -->
+            <div class="dim-panel">
+              <div class="dim-panel-header">
+                <div class="dim-panel-title">📝 Subject &amp; Preview</div>
+                <span class="dim-score-badge" :class="scoreColor(item.analysis.subjectAndPreview.score)"
+                      x-text="item.analysis.subjectAndPreview.score + '/10'"></span>
+              </div>
+              <div class="fact-row">
+                <span>Subject length:</span>
+                <strong x-text="item.analysis.subjectAndPreview.subjectLength + ' chars'"></strong>
+              </div>
+              <div class="fact-row" x-show="item.analysis.subjectAndPreview.subjectAnalysis">
+                <span style="flex-shrink:0">Subject:</span>
+                <strong x-text="item.analysis.subjectAndPreview.subjectAnalysis"></strong>
+              </div>
+              <div class="fact-row" x-show="item.analysis.subjectAndPreview.previewAnalysis">
+                <span style="flex-shrink:0">Preview:</span>
+                <strong x-text="item.analysis.subjectAndPreview.previewAnalysis"></strong>
+              </div>
+              <template x-if="item.analysis.subjectAndPreview.alternativeSubjects && item.analysis.subjectAndPreview.alternativeSubjects.length">
+                <div class="list-section">
+                  <h5>Alternative Subject Lines</h5>
+                  <ul class="alts">
+                    <template x-for="a in item.analysis.subjectAndPreview.alternativeSubjects">
+                      <li x-text="a"></li>
+                    </template>
+                  </ul>
+                </div>
+              </template>
+              <template x-if="item.analysis.subjectAndPreview.recommendations && item.analysis.subjectAndPreview.recommendations.length">
+                <div class="list-section">
+                  <h5>Recommendations</h5>
+                  <ul class="recs">
+                    <template x-for="r in item.analysis.subjectAndPreview.recommendations">
+                      <li x-text="r"></li>
+                    </template>
+                  </ul>
+                </div>
+              </template>
+            </div>
+
+            <!-- HTML QUALITY -->
+            <div class="dim-panel">
+              <div class="dim-panel-header">
+                <div class="dim-panel-title">🖥 HTML Quality</div>
+                <span class="dim-score-badge" :class="scoreColor(item.analysis.htmlQuality.score)"
+                      x-text="item.analysis.htmlQuality.score + '/10'"></span>
+              </div>
+              <div class="fact-row" x-show="item.analysis.htmlQuality.imageToTextRatio">
+                <span>Image/text ratio:</span>
+                <strong x-text="item.analysis.htmlQuality.imageToTextRatio"></strong>
+              </div>
+              <div class="fact-row">
+                <span>Inline CSS:</span>
+                <strong x-text="item.analysis.htmlQuality.inlineCss ? '✅ Yes' : '❌ No'"></strong>
+              </div>
+              <div class="fact-row">
+                <span>Mobile-friendly:</span>
+                <strong x-text="item.analysis.htmlQuality.mobileFriendly ? '✅ Yes' : '❌ No'"></strong>
+              </div>
+              <template x-if="item.analysis.htmlQuality.issues && item.analysis.htmlQuality.issues.length">
+                <div class="list-section">
+                  <h5>Issues</h5>
+                  <ul class="issues">
+                    <template x-for="i in item.analysis.htmlQuality.issues">
+                      <li x-text="i"></li>
+                    </template>
+                  </ul>
+                </div>
+              </template>
+              <template x-if="item.analysis.htmlQuality.positives && item.analysis.htmlQuality.positives.length">
+                <div class="list-section">
+                  <h5>Positives</h5>
+                  <ul class="positives">
+                    <template x-for="p in item.analysis.htmlQuality.positives">
+                      <li x-text="p"></li>
+                    </template>
+                  </ul>
+                </div>
+              </template>
+              <template x-if="item.analysis.htmlQuality.recommendations && item.analysis.htmlQuality.recommendations.length">
+                <div class="list-section">
+                  <h5>Recommendations</h5>
+                  <ul class="recs">
+                    <template x-for="r in item.analysis.htmlQuality.recommendations">
+                      <li x-text="r"></li>
+                    </template>
+                  </ul>
+                </div>
+              </template>
+            </div>
+
+            <!-- COPY & CTA -->
+            <div class="dim-panel">
+              <div class="dim-panel-header">
+                <div class="dim-panel-title">✍️ Copy &amp; CTA</div>
+                <span class="dim-score-badge" :class="scoreColor(item.analysis.copyAndCta.score)"
+                      x-text="item.analysis.copyAndCta.score + '/10'"></span>
+              </div>
+              <div class="fact-row" x-show="item.analysis.copyAndCta.ctaCount !== undefined">
+                <span>CTA count:</span>
+                <strong x-text="item.analysis.copyAndCta.ctaCount"></strong>
+              </div>
+              <div class="fact-row" x-show="item.analysis.copyAndCta.primaryCta">
+                <span>Primary CTA:</span>
+                <strong x-text="'&quot;' + item.analysis.copyAndCta.primaryCta + '&quot;'"></strong>
+              </div>
+              <div class="fact-row" x-show="item.analysis.copyAndCta.toneAssessment">
+                <span>Tone:</span>
+                <strong x-text="item.analysis.copyAndCta.toneAssessment"></strong>
+              </div>
+              <template x-if="item.analysis.copyAndCta.issues && item.analysis.copyAndCta.issues.length">
+                <div class="list-section">
+                  <h5>Issues</h5>
+                  <ul class="issues">
+                    <template x-for="i in item.analysis.copyAndCta.issues">
+                      <li x-text="i"></li>
+                    </template>
+                  </ul>
+                </div>
+              </template>
+              <template x-if="item.analysis.copyAndCta.positives && item.analysis.copyAndCta.positives.length">
+                <div class="list-section">
+                  <h5>Positives</h5>
+                  <ul class="positives">
+                    <template x-for="p in item.analysis.copyAndCta.positives">
+                      <li x-text="p"></li>
+                    </template>
+                  </ul>
+                </div>
+              </template>
+              <template x-if="item.analysis.copyAndCta.recommendations && item.analysis.copyAndCta.recommendations.length">
+                <div class="list-section">
+                  <h5>Recommendations</h5>
+                  <ul class="recs">
+                    <template x-for="r in item.analysis.copyAndCta.recommendations">
+                      <li x-text="r"></li>
+                    </template>
+                  </ul>
+                </div>
+              </template>
+            </div>
+
+            <!-- ACCESSIBILITY -->
+            <div class="dim-panel">
+              <div class="dim-panel-header">
+                <div class="dim-panel-title">♿ Accessibility</div>
+                <span class="dim-score-badge" :class="scoreColor(item.analysis.accessibility.score)"
+                      x-text="item.analysis.accessibility.score + '/10'"></span>
+              </div>
+              <div class="fact-row" x-show="item.analysis.accessibility.altTextCoverage">
+                <span>Alt text:</span>
+                <strong x-text="item.analysis.accessibility.altTextCoverage"></strong>
+              </div>
+              <div class="fact-row" x-show="item.analysis.accessibility.colorContrastNotes">
+                <span>Contrast:</span>
+                <strong x-text="item.analysis.accessibility.colorContrastNotes"></strong>
+              </div>
+              <div class="fact-row" x-show="item.analysis.accessibility.semanticStructure">
+                <span>Structure:</span>
+                <strong x-text="item.analysis.accessibility.semanticStructure"></strong>
+              </div>
+              <template x-if="item.analysis.accessibility.issues && item.analysis.accessibility.issues.length">
+                <div class="list-section">
+                  <h5>Issues</h5>
+                  <ul class="issues">
+                    <template x-for="i in item.analysis.accessibility.issues">
+                      <li x-text="i"></li>
+                    </template>
+                  </ul>
+                </div>
+              </template>
+              <template x-if="item.analysis.accessibility.positives && item.analysis.accessibility.positives.length">
+                <div class="list-section">
+                  <h5>Positives</h5>
+                  <ul class="positives">
+                    <template x-for="p in item.analysis.accessibility.positives">
+                      <li x-text="p"></li>
+                    </template>
+                  </ul>
+                </div>
+              </template>
+              <template x-if="item.analysis.accessibility.recommendations && item.analysis.accessibility.recommendations.length">
+                <div class="list-section">
+                  <h5>Recommendations</h5>
+                  <ul class="recs">
+                    <template x-for="r in item.analysis.accessibility.recommendations">
+                      <li x-text="r"></li>
+                    </template>
+                  </ul>
+                </div>
+              </template>
+            </div>
+
+          </div><!-- /dimensions-grid -->
+        </div><!-- /card-body -->
+      </div><!-- /analysis-card -->
+    </template>
+
+  </main>
+
+  <script>
+    // Set the inbound email address from env variable (injected at build time if needed)
+    // Or update the placeholder text to match your actual Mailgun address
+    const INBOUND_EMAIL = window.INBOUND_EMAIL || 'analyze@YOUR-DOMAIN.mailgun.org';
+    document.getElementById('inboxAddr').textContent = INBOUND_EMAIL;
+
+    function copyEmail() {
+      navigator.clipboard.writeText(INBOUND_EMAIL).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+
+    function app() {
+      return {
+        analyses: [],
+        loading: true,
+        lastRefresh: '',
+        intervalId: null,
+
+        async init() {
+          await this.fetchAnalyses();
+          this.intervalId = setInterval(() => this.fetchAnalyses(), 15000);
+        },
+
+        async fetchAnalyses() {
+          try {
+            const res = await fetch('/.netlify/functions/get-analyses');
+            if (!res.ok) throw new Error('Network error');
+            const data = await res.json();
+            // Preserve open state of existing cards
+            const openIds = new Set(
+              this.analyses.filter(a => a._open).map(a => a.id)
+            );
+            this.analyses = data.map(item => ({
+              ...item,
+              _open: openIds.has(item.id),
+            }));
+            this.lastRefresh = new Date().toLocaleTimeString();
+          } catch (e) {
+            console.error('Failed to fetch analyses:', e);
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        formatDate(iso) {
+          const d = new Date(iso);
+          return d.toLocaleDateString('en-US', {
+            month: 'short', day: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+          });
+        },
+
+        truncate(str, n) {
+          if (!str) return '';
+          return str.length > n ? str.substring(0, n) + '…' : str;
+        },
+
+        scoreColor(score) {
+          if (score >= 8) return 'status-good';
+          if (score >= 5) return 'status-warning';
+          return 'status-critical';
+        },
+
+        statusClass(status) {
+          if (status === 'good') return 'status-good';
+          if (status === 'warning') return 'status-warning';
+          return 'status-critical';
+        },
+
+        ringClass(score) {
+          if (score >= 8) return 'ring-good';
+          if (score >= 5) return 'ring-warning';
+          return 'ring-critical';
+        },
+      };
+    }
+  </script>
+
+</body>
+</html>

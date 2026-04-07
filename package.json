@@ -1,0 +1,13 @@
+{
+  "name": "email-campaign-analyzer",
+  "version": "1.0.0",
+  "description": "eCRM Email Campaign Analyzer — powered by Claude AI",
+  "private": true,
+  "dependencies": {
+    "@netlify/blobs": "^8.0.0",
+    "busboy": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
