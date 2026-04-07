@@ -19,3 +19,9 @@
   from = "/.netlify/functions/*"
   to = "/.netlify/functions/:splat"
   status = 200
+
+# ONLY use redirects for custom paths, never for the direct .netlify path
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200

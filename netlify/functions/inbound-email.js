@@ -216,7 +216,11 @@ exports.handler = async (event) => {
     });
 
     // Store result in Netlify Blobs (sorted by timestamp via key)
-    const store = getStore('email-analyses');
+    const store = getStore({
+      name: 'email-analyses',
+      siteID: process.env.MY_SITE_ID, // Matches the key in Netlify UI
+    token: process.env.MY_NETLIFY_TOKEN
+    });
     const id = `analysis-${Date.now()}`;
 
     await store.set(
