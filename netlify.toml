@@ -15,10 +15,10 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
 
 # Prevent direct access to functions in browser nav
-[[redirects]]
-  from = "/.netlify/functions/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
+#[[redirects]]
+#  from = "/.netlify/functions/*"
+#  to = "/.netlify/functions/:splat"
+#  status = 200
 
 # ONLY use redirects for custom paths, never for the direct .netlify path
 [[redirects]]
