@@ -15,14 +15,25 @@ function parseMultipartForm(event) {
     const contentType =
       event.headers['content-type'] || event.headers['Content-Type'] || '';
 
+    console.log(`📨 Content-Type: ${contentType}`);
+    console.log(`📦 Body size: ${event.body?.length || 0} bytes`);
+
     const bb = busboy({ headers: { 'content-type': contentType } });
 
     bb.on('field', (name, val) => {
       fields[name] = val;
+      console.log(`   - Parsed field: ${name}`);
     });
 
-    bb.on('finish', () => resolve(fields));
-    bb.on('error', (err) => reject(err));
+    bb.on('finish', () => {
+      console.log(`✅ Busboy finished. Total fields: ${Object.keys(fields).length}`);
+      resolve(fields);
+    });
+
+    bb.on('error', (err) => {
+      console.error(`❌ Busboy error: ${err.message}`);
+      reject(err);
+    });
 
     const bodyBuffer = event.isBase64Encoded
       ? Buffer.from(event.body, 'base64')
@@ -140,51 +151,81 @@ Return ONLY a valid JSON object with this exact structure — no markdown, no ex
 // ---------------------------------------------------------------------------
 async function analyzeWithClaude(emailData) {
   const apiKey = process.env.CLAUDE_API_KEY;
-  if (!apiKey) throw new Error('CLAUDE_API_KEY environment variable is not set.');
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2500,
-      messages: [{ role: 'user', content: buildPrompt(emailData) }],
-    }),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Claude API error ${response.status}: ${errText}`);
+  if (!apiKey) {
+    const err = new Error('CLAUDE_API_KEY environment variable is not set.');
+    console.error(`❌ ${err.message}`);
+    throw err;
   }
+  console.log('✅ CLAUDE_API_KEY is configured');
 
-  const data = await response.json();
-  const text = data.content[0].text.trim();
+  try {
+    console.log('📤 Sending request to Claude API...');
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 2500,
+        messages: [{ role: 'user', content: buildPrompt(emailData) }],
+      }),
+    });
 
-  // Extract JSON even if Claude wraps it
-  const match = text.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('Claude response did not contain valid JSON.');
-  return JSON.parse(match[0]);
+    console.log(`📥 Claude response status: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const errText = await response.text();
+      const err = new Error(`Claude API error ${response.status}: ${errText}`);
+      console.error(`❌ ${err.message}`);
+      throw err;
+    }
+
+    const data = await response.json();
+    const text = data.content[0].text.trim();
+
+    // Extract JSON even if Claude wraps it
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) {
+      const err = new Error('Claude response did not contain valid JSON.');
+      console.error(`❌ ${err.message}`);
+      console.error(`   Raw response: ${text.substring(0, 200)}`);
+      throw err;
+    }
+
+    console.log('✅ Claude response parsed successfully');
+    return JSON.parse(match[0]);
+  } catch (err) {
+    console.error(`❌ Claude API error: ${err.message}`);
+    throw err;
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Lambda handler
 // ---------------------------------------------------------------------------
 exports.handler = async (event) => {
+  console.log('=== INBOUND EMAIL HANDLER STARTED ===');
+
   // Only accept POST requests
   if (event.httpMethod !== 'POST') {
+    console.warn(`❌ Invalid HTTP method: ${event.httpMethod}`);
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
+  console.log('✅ POST request received');
 
   try {
     // Parse Mailgun's multipart form data
+    console.log('📨 Parsing multipart form data...');
     const fields = await parseMultipartForm(event);
+    console.log('✅ Form parsed. Fields:', Object.keys(fields));
 
     // Verify webhook authenticity
     const { timestamp, token, signature } = fields;
+    console.log(`🔐 Verifying Mailgun signature (webhook_key present: ${!!process.env.MAILGUN_WEBHOOK_KEY})`);
     if (
       !verifySignature(
         timestamp,
@@ -193,9 +234,10 @@ exports.handler = async (event) => {
         process.env.MAILGUN_WEBHOOK_KEY
       )
     ) {
-      console.error('Mailgun signature verification failed');
+      console.error('❌ Mailgun signature verification failed');
       return { statusCode: 401, body: 'Unauthorized' };
     }
+    console.log('✅ Signature verified');
 
     // Extract email components
     const sender = fields.sender || fields.from || 'Unknown Sender';
@@ -204,9 +246,14 @@ exports.handler = async (event) => {
     const plainBody = fields['body-plain'] || '';
     const previewText = extractPreviewText(plainBody);
 
-    console.log(`Processing email: "${subject}" from ${sender}`);
+    console.log(`✅ Email extracted: "${subject}" from ${sender}`);
+    console.log(`   - HTML body size: ${htmlBody.length} chars`);
+    console.log(`   - Plain body size: ${plainBody.length} chars`);
 
     // Run Claude analysis
+    console.log('🤖 Calling Claude API...');
+    console.log(`   - CLAUDE_API_KEY present: ${!!process.env.CLAUDE_API_KEY}`);
+
     const analysis = await analyzeWithClaude({
       sender,
       subject,
@@ -214,14 +261,22 @@ exports.handler = async (event) => {
       htmlBody,
       plainBody,
     });
+    console.log('✅ Claude analysis complete');
 
     // Store result in Netlify Blobs (sorted by timestamp via key)
+    console.log('💾 Initializing Netlify Blobs store...');
+    console.log(`   - MY_SITE_ID present: ${!!process.env.MY_SITE_ID}`);
+    console.log(`   - MY_NETLIFY_TOKEN present: ${!!process.env.MY_NETLIFY_TOKEN}`);
+
     const store = getStore({
       name: 'email-analyses',
-      siteID: process.env.MY_SITE_ID, // Matches the key in Netlify UI
+      siteID: process.env.MY_SITE_ID,
       token: process.env.MY_NETLIFY_TOKEN,
     });
+    console.log('✅ Store initialized');
+
     const id = `analysis-${Date.now()}`;
+    console.log(`📝 Storing analysis with ID: ${id}`);
 
     await store.set(
       id,
@@ -235,14 +290,19 @@ exports.handler = async (event) => {
       })
     );
 
-    console.log(`Analysis stored with id: ${id}`);
+    console.log(`✅ Analysis stored successfully`);
+    console.log('=== INBOUND EMAIL HANDLER COMPLETED ===');
 
     return {
       statusCode: 200,
       body: JSON.stringify({ success: true, id }),
     };
   } catch (err) {
-    console.error('Error in inbound-email handler:', err);
+    console.error('❌ ERROR in inbound-email handler');
+    console.error(`   Error message: ${err.message}`);
+    console.error(`   Error stack: ${err.stack}`);
+    console.log('=== INBOUND EMAIL HANDLER FAILED ===');
+
     return {
       statusCode: 500,
       body: JSON.stringify({ error: err.message }),
